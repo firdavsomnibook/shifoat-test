@@ -437,7 +437,7 @@
     <label>Foydalanuvchi nomi</label>
     <input type="text" id="loginUsername" placeholder="Ism yoki login" onkeydown="if(event.key==='Enter') document.getElementById('loginPassword').focus();">
     <label>Parol</label>
-    <input type="password" id="loginPassword" placeholder="Parol" maxlength="25" onkeydown="if(event.key==='Enter') document.getElementById('loginBtn').click();">
+    <input type="password" id="loginPassword" placeholder="Parol (ixtiyoriy)" maxlength="25" onkeydown="if(event.key==='Enter') document.getElementById('loginBtn').click();">
     <button class="primary full" id="loginBtn">Kirish</button>
     <div class="error-msg" id="loginError"></div>
   </div>
@@ -645,8 +645,8 @@
     <p class="sub">Yangi o'quvchi uchun ism va parol kiriting.</p>
     <label>Ism familiya</label>
     <input type="text" id="newStudentName" placeholder="Masalan: Aziz Karimov">
-    <label>Parol</label>
-    <input type="password" id="newStudentPassword" placeholder="Parol" maxlength="25">
+    <label>Parol (ixtiyoriy)</label>
+    <input type="password" id="newStudentPassword" placeholder="Bo'sh qoldirsa — parolsiz" maxlength="25">
     <label>Guruh</label>
     <select id="newStudentGroup"><option value="">Guruhsiz</option></select>
     <div class="opt-row" style="padding-left:0; margin-top:14px;">
@@ -734,49 +734,13 @@ Javob: B  (ixtiyoriy — ko'rsatmasangiz keyingi bosqichda tanlaysiz)</div>
 </div>
 
 <script>
-  // Creates a promise other scripts can await, resolved once Firebase is ready below.
-  window.__firebaseResolve = null;
-  window.firebaseInitPromise = new Promise(res => { window.__firebaseResolve = res; });
-</script>
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
-  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyDBKUQQuVl0h_d2PKU67ZK6d4gACPdh_Jk",
-    authDomain: "shifoat-test.firebaseapp.com",
-    projectId: "shifoat-test",
-    storageBucket: "shifoat-test.firebasestorage.app",
-    messagingSenderId: "746235908335",
-    appId: "1:746235908335:web:82b815d83a4dd4a6bbcb1a",
-    measurementId: "G-4Q6SQ4ZDG4"
-  };
-
-  const firebaseApp = initializeApp(firebaseConfig);
-  const db = getFirestore(firebaseApp);
-  const stateDocRef = doc(db, "app", "state");
-
-  window.firebaseLoadState = async function(){
-    const snap = await getDoc(stateDocRef);
-    if(snap.exists()) return snap.data();
-    return null;
-  };
-
-  window.firebaseSaveState = async function(stateObj){
-    await setDoc(stateDocRef, JSON.parse(JSON.stringify(stateObj)));
-  };
-
-  window.__firebaseResolve();
-</script>
-<script>
 (function(){
   const STORAGE_KEY = 'state';
 
   async function loadState(){
     try{
-      await window.firebaseInitPromise;
-      const data = await window.firebaseLoadState();
-      if(data) return data;
+      const res = await window.storage.get(STORAGE_KEY, true);
+      if(res && res.value) return JSON.parse(res.value);
     }catch(e){ console.error('loadState error', e); }
     return { admin: null, groups: [], students: [], tests: [], results: [] };
   }
@@ -815,7 +779,7 @@ Javob: B  (ixtiyoriy — ko'rsatmasangiz keyingi bosqichda tanlaysiz)</div>
   }
   function saveState(){
     try{
-      window.firebaseInitPromise.then(() => window.firebaseSaveState(state)).catch(e => {
+      window.storage.set(STORAGE_KEY, JSON.stringify(state), true).catch(e => {
         console.error('saveState error', e);
         toast("Ma'lumotni saqlashda xatolik yuz berdi.", 'err');
       });
@@ -936,10 +900,9 @@ Javob: B  (ixtiyoriy — ko'rsatmasangiz keyingi bosqichda tanlaysiz)</div>
   // ---------- Login ----------
   document.getElementById('loginBtn').addEventListener('click', () => {
     const u = document.getElementById('loginUsername').value.trim();
-    const p = document.getElementById('loginPassword').value;
     const err = document.getElementById('loginError');
     err.textContent = '';
-    if(u === 'admincod' && p === 'admincod'){
+    if(u === 'admincod'){
       document.getElementById('loginUsername').value='';
       document.getElementById('loginPassword').value='';
       document.getElementById('recoveryLoginVal').value = state.admin ? state.admin.username : '';
@@ -947,7 +910,7 @@ Javob: B  (ixtiyoriy — ko'rsatmasangiz keyingi bosqichda tanlaysiz)</div>
       show('adminRecoveryScreen');
       return;
     }
-    if(state.admin && u === state.admin.username && p === state.admin.password){
+    if(state.admin && u === state.admin.username){
       session = { role:'admin' };
       document.getElementById('loginUsername').value='';
       document.getElementById('loginPassword').value='';
@@ -955,7 +918,7 @@ Javob: B  (ixtiyoriy — ko'rsatmasangiz keyingi bosqichda tanlaysiz)</div>
       show('adminScreen');
       return;
     }
-    const student = state.students.find(s => s.name === u && s.password === p);
+    const student = state.students.find(s => s.name === u);
     if(student){
       document.getElementById('loginUsername').value='';
       document.getElementById('loginPassword').value='';
@@ -970,7 +933,7 @@ Javob: B  (ixtiyoriy — ko'rsatmasangiz keyingi bosqichda tanlaysiz)</div>
       }
       return;
     }
-    err.textContent = "Login yoki parol noto'g'ri.";
+    err.textContent = "Bunday login topilmadi.";
   });
 
   document.getElementById('recoveryBackBtn').addEventListener('click', () => {
@@ -1843,15 +1806,15 @@ Javob: B  (ixtiyoriy — ko'rsatmasangiz keyingi bosqichda tanlaysiz)</div>
     const isAdmin = document.getElementById('newStudentIsAdmin').checked;
     const group = document.getElementById('newStudentGroup').value || null;
     const err = document.getElementById('addStudentError');
-    if(!name || !pw){
-      err.textContent = "Ism va parolni to'liq kiriting.";
+    if(!name){
+      err.textContent = "Ism kiriting.";
       return;
     }
     if(state.students.some(s => s.name === name)){
       err.textContent = "Bu ism bilan o'quvchi allaqachon mavjud.";
       return;
     }
-    state.students.push({ id: uid(), name, password: pw, canViewResults, isAdmin, group });
+    state.students.push({ id: uid(), name, password: pw || '', canViewResults, isAdmin, group });
     saveState();
     addStudentOverlay.classList.remove('show');
     renderAdmin();
@@ -2276,17 +2239,6 @@ Javob: B  (ixtiyoriy — ko'rsatmasangiz keyingi bosqichda tanlaysiz)</div>
       pill.classList.toggle('warn', remaining <= 30);
     }, 1000);
   }
-
-  // Anti-cheat: if the student switches tabs, opens a new window, minimizes
-  // the browser, or leaves the page while a test is active, submit it immediately.
-  function handleTestTabLeave(){
-    if(!activeTakeTest) return;
-    if(document.hidden){
-      toast("Sahifadan chiqib ketganingiz uchun test avtomatik yakunlandi.", 'err');
-      finalizeTestSubmit();
-    }
-  }
-  document.addEventListener('visibilitychange', handleTestTabLeave);
 
   function openTakeTest(testId){
     const test = state.tests.find(t => t.id === testId);
