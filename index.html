@@ -734,13 +734,49 @@ Javob: B  (ixtiyoriy — ko'rsatmasangiz keyingi bosqichda tanlaysiz)</div>
 </div>
 
 <script>
+  // Creates a promise other scripts can await, resolved once Firebase is ready below.
+  window.__firebaseResolve = null;
+  window.firebaseInitPromise = new Promise(res => { window.__firebaseResolve = res; });
+</script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-app.js";
+  import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyDBKUQQuVl0h_d2PKU67ZK6d4gACPdh_Jk",
+    authDomain: "shifoat-test.firebaseapp.com",
+    projectId: "shifoat-test",
+    storageBucket: "shifoat-test.firebasestorage.app",
+    messagingSenderId: "746235908335",
+    appId: "1:746235908335:web:82b815d83a4dd4a6bbcb1a",
+    measurementId: "G-4Q6SQ4ZDG4"
+  };
+
+  const firebaseApp = initializeApp(firebaseConfig);
+  const db = getFirestore(firebaseApp);
+  const stateDocRef = doc(db, "app", "state");
+
+  window.firebaseLoadState = async function(){
+    const snap = await getDoc(stateDocRef);
+    if(snap.exists()) return snap.data();
+    return null;
+  };
+
+  window.firebaseSaveState = async function(stateObj){
+    await setDoc(stateDocRef, JSON.parse(JSON.stringify(stateObj)));
+  };
+
+  window.__firebaseResolve();
+</script>
+<script>
 (function(){
   const STORAGE_KEY = 'state';
 
   async function loadState(){
     try{
-      const res = await window.storage.get(STORAGE_KEY, true);
-      if(res && res.value) return JSON.parse(res.value);
+      await window.firebaseInitPromise;
+      const data = await window.firebaseLoadState();
+      if(data) return data;
     }catch(e){ console.error('loadState error', e); }
     return { admin: null, groups: [], students: [], tests: [], results: [] };
   }
@@ -779,7 +815,7 @@ Javob: B  (ixtiyoriy — ko'rsatmasangiz keyingi bosqichda tanlaysiz)</div>
   }
   function saveState(){
     try{
-      window.storage.set(STORAGE_KEY, JSON.stringify(state), true).catch(e => {
+      window.firebaseInitPromise.then(() => window.firebaseSaveState(state)).catch(e => {
         console.error('saveState error', e);
         toast("Ma'lumotni saqlashda xatolik yuz berdi.", 'err');
       });
@@ -2240,6 +2276,17 @@ Javob: B  (ixtiyoriy — ko'rsatmasangiz keyingi bosqichda tanlaysiz)</div>
       pill.classList.toggle('warn', remaining <= 30);
     }, 1000);
   }
+
+  // Anti-cheat: if the student switches tabs, opens a new window, minimizes
+  // the browser, or leaves the page while a test is active, submit it immediately.
+  function handleTestTabLeave(){
+    if(!activeTakeTest) return;
+    if(document.hidden){
+      toast("Sahifadan chiqib ketganingiz uchun test avtomatik yakunlandi.", 'err');
+      finalizeTestSubmit();
+    }
+  }
+  document.addEventListener('visibilitychange', handleTestTabLeave);
 
   function openTakeTest(testId){
     const test = state.tests.find(t => t.id === testId);
